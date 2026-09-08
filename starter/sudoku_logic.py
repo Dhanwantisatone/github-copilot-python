@@ -4,6 +4,12 @@ import random
 SIZE = 9
 EMPTY = 0
 
+DIFFICULTY_LEVELS = {
+    "easy": 38,
+    "medium": 30,
+    "hard": 24
+}
+
 def deep_copy(board):
     return copy.deepcopy(board)
 
@@ -13,18 +19,25 @@ def create_empty_board():
 def is_safe(board, row, col, num):
     # Check row and column
     for x in range(SIZE):
-        if board[row][x] == num or board[x][col] == num:
+        if board[row][x] == num and x != col:
             return False
+        if board[x][col] == num and x != row:
+            return False
+
     # Check 3x3 box
     start_row = row - row % 3
     start_col = col - col % 3
     for i in range(3):
         for j in range(3):
-            if board[start_row + i][start_col + j] == num:
+            r = start_row + i
+            c = start_col + j
+            if (r != row or c != col) and board[r][c] == num:
                 return False
+
     return True
 
 def fill_board(board):
+    """Fills the board completely with a valid Sudoku layout."""
     for row in range(SIZE):
         for col in range(SIZE):
             if board[row][col] == EMPTY:
@@ -39,16 +52,45 @@ def fill_board(board):
                 return False
     return True
 
-def remove_cells(board, clues):
-    attempts = SIZE * SIZE - clues
-    while attempts > 0:
-        row = random.randrange(SIZE)
-        col = random.randrange(SIZE)
-        if board[row][col] != EMPTY:
-            board[row][col] = EMPTY
-            attempts -= 1
+def count_solutions(board, limit=2):
+    """Backtracking counter that ensures only 1 unique solution exists."""
+    for row in range(SIZE):
+        for col in range(SIZE):
+            if board[row][col] == EMPTY:
+                count = 0
+                for candidate in range(1, SIZE + 1):
+                    if is_safe(board, row, col, candidate):
+                        board[row][col] = candidate
+                        count += count_solutions(board, limit)
+                        board[row][col] = EMPTY
+                        if count >= limit:
+                            return count
+                return count
+    return 1
 
-def generate_puzzle(clues=35):
+def remove_cells(board, clues=30):
+    """Carves empty cells while validating that the puzzle stays uniquely solvable."""
+    cells = [(r, c) for r in range(SIZE) for c in range(SIZE)]
+    random.shuffle(cells)
+
+    current_clues = 81
+    for r, c in cells:
+        if current_clues <= clues:
+            break
+
+        removed_val = board[r][c]
+        board[r][c] = EMPTY
+
+        test_board = deep_copy(board)
+        if count_solutions(test_board, limit=2) != 1:
+            # Revert: removing this cell produces more than one solution
+            board[r][c] = removed_val
+        else:
+            current_clues -= 1
+
+def generate_puzzle(difficulty="medium"):
+    """Generates puzzle and solved board based on requested difficulty."""
+    clues = DIFFICULTY_LEVELS.get(str(difficulty).lower(), 30)
     board = create_empty_board()
     fill_board(board)
     solution = deep_copy(board)
